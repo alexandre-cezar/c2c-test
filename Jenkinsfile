@@ -66,16 +66,27 @@ pipeline {
           sh '''
             set -eu
 
-            crtx_resp=$(curl -s "https://api-pmemdemo.xdr.us.paloaltonetworks.com/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+            crtx_body=$(mktemp)
+            trap 'rm -f "$crtx_body"' EXIT
+
+            # Capture the status separately: this endpoint returns an empty body
+            # on auth failure, so the status code is the only useful signal.
+            crtx_http=$(curl -s -o "$crtx_body" -w '%{http_code}' \
+              "https://api-pmemdemo.xdr.us.paloaltonetworks.com/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
               -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
               -H "Authorization: ${CORTEX_API_KEY}")
 
-            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url")
-            crtx_file=$(echo "$crtx_resp" | jq -r ".file_name")
+            crtx_resp=$(cat "$crtx_body")
+            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty" 2>/dev/null)
+            crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty" 2>/dev/null)
 
-            if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
-              echo "Failed to obtain Cortex CLI download link. API response:"
-              echo "$crtx_resp"
+            if [ -z "$crtx_url" ]; then
+              echo "Failed to obtain Cortex CLI download link (HTTP ${crtx_http})."
+              if [ "$crtx_http" = "401" ] || [ "$crtx_http" = "403" ]; then
+                echo "Auth rejected. Check the 'cortex-api-key-id' credential: it is the"
+                echo "small integer key ID from the Cortex console, not the 128-char API key."
+              fi
+              echo "Response body: ${crtx_resp:-<empty>}"
               exit 1
             fi
 
