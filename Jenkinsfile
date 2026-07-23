@@ -49,43 +49,8 @@ pipeline {
       }
     }
 
-    stage('Push Images') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: "${DOCKERHUB_CREDS}",
-          usernameVariable: 'DOCKER_USER',
-          passwordVariable: 'DOCKER_PASS'
-        )]) {
-          sh '''
-            echo "${DOCKER_PASS}" | docker login ${REGISTRY} -u "${DOCKER_USER}" --password-stdin
-            docker push ${IMAGE_REPO}:${BACKEND_TAG}
-            docker push ${IMAGE_REPO}:backend-latest
-            docker push ${IMAGE_REPO}:${FRONTEND_TAG}
-            docker push ${IMAGE_REPO}:frontend-latest
-            docker logout ${REGISTRY}
-          '''
-        }
-      }
-    }
-
-    stage('Deploy to Kubernetes') {
-      when {
-        branch 'main'
-      }
-      steps {
-        // Requires a kubeconfig available to the agent (e.g. via withKubeConfig
-        // from the Kubernetes CLI plugin, or a mounted KUBECONFIG).
-        sh '''
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/
-          kubectl -n ${K8S_NAMESPACE} set image deployment/backend backend=${IMAGE_REPO}:${BACKEND_TAG}
-          kubectl -n ${K8S_NAMESPACE} set image deployment/frontend frontend=${IMAGE_REPO}:${FRONTEND_TAG}
-          kubectl -n ${K8S_NAMESPACE} rollout status deployment/backend --timeout=120s
-          kubectl -n ${K8S_NAMESPACE} rollout status deployment/frontend --timeout=120s
-        '''
-      }
-    }
-
+    // Gate: runs on the locally built images, before anything is pushed or
+    // deployed, so a failing scan stops a vulnerable image from shipping.
     stage('Vulnerability Scan') {
       steps {
         // Secret text credentials, created in Jenkins as:
@@ -121,6 +86,43 @@ pipeline {
             ./"$crtx_file" image scan --name "${IMAGE_REPO}:${FRONTEND_TAG}"
           '''
         }
+      }
+    }
+
+    stage('Push Images') {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: "${DOCKERHUB_CREDS}",
+          usernameVariable: 'DOCKER_USER',
+          passwordVariable: 'DOCKER_PASS'
+        )]) {
+          sh '''
+            echo "${DOCKER_PASS}" | docker login ${REGISTRY} -u "${DOCKER_USER}" --password-stdin
+            docker push ${IMAGE_REPO}:${BACKEND_TAG}
+            docker push ${IMAGE_REPO}:backend-latest
+            docker push ${IMAGE_REPO}:${FRONTEND_TAG}
+            docker push ${IMAGE_REPO}:frontend-latest
+            docker logout ${REGISTRY}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy to Kubernetes') {
+      when {
+        branch 'main'
+      }
+      steps {
+        // Requires a kubeconfig available to the agent (e.g. via withKubeConfig
+        // from the Kubernetes CLI plugin, or a mounted KUBECONFIG).
+        sh '''
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/
+          kubectl -n ${K8S_NAMESPACE} set image deployment/backend backend=${IMAGE_REPO}:${BACKEND_TAG}
+          kubectl -n ${K8S_NAMESPACE} set image deployment/frontend frontend=${IMAGE_REPO}:${FRONTEND_TAG}
+          kubectl -n ${K8S_NAMESPACE} rollout status deployment/backend --timeout=120s
+          kubectl -n ${K8S_NAMESPACE} rollout status deployment/frontend --timeout=120s
+        '''
       }
     }
   }
