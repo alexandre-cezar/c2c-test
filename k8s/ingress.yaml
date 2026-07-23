@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: code2cloud
+  namespace: code2cloud
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    # Replace with your real host, or use the LB IP with a nip.io host for testing.
+    - host: code2cloud.local
+      http:
+        paths:
+          # API traffic -> backend (FastAPI keeps the /api prefix, no rewrite)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80
+          # Everything else -> frontend SPA
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
