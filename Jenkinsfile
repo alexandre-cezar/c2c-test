@@ -10,6 +10,8 @@ pipeline {
     BACKEND_TAG    = "backend-${env.BUILD_NUMBER}"
     FRONTEND_TAG   = "frontend-${env.BUILD_NUMBER}"
     K8S_NAMESPACE  = 'code2cloud'
+    // Cortex XDR tenant API base URL (required by the cortexcli image scan)
+    CORTEX_API_BASE_URL = 'https://api-pmemdemo.xdr.us.paloaltonetworks.com'
   }
 
   options {
@@ -93,8 +95,15 @@ pipeline {
             curl -sSf -o "$crtx_file" "$crtx_url"
             chmod +x "$crtx_file"
 
-            ./"$crtx_file" image scan --name "${IMAGE_REPO}:${BACKEND_TAG}"
-            ./"$crtx_file" image scan --name "${IMAGE_REPO}:${FRONTEND_TAG}"
+            # cortexcli authenticates from CORTEX_API_KEY_ID / CORTEX_API_KEY (set
+            # by withCredentials above) plus CORTEX_API_BASE_URL (pipeline env).
+            # The image reference is a POSITIONAL argument; --name is only a label.
+            # NOTE: cortexcli exits 0 even when it finds vulnerabilities, so this
+            # stage reports but does not block on its own. Enforcement is done by
+            # policy on the Cortex platform. To make it a hard gate here, add a
+            # threshold check on --output-format json (see the PR discussion).
+            ./"$crtx_file" image scan "${IMAGE_REPO}:${BACKEND_TAG}"  --timeout 600
+            ./"$crtx_file" image scan "${IMAGE_REPO}:${FRONTEND_TAG}" --timeout 600
           '''
         }
       }
