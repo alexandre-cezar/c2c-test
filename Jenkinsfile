@@ -133,16 +133,19 @@ pipeline {
         branch 'main'
       }
       steps {
-        // Requires a kubeconfig available to the agent (e.g. via withKubeConfig
-        // from the Kubernetes CLI plugin, or a mounted KUBECONFIG).
-        sh '''
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/
-          kubectl -n ${K8S_NAMESPACE} set image deployment/backend backend=${IMAGE_REPO}:${BACKEND_TAG}
-          kubectl -n ${K8S_NAMESPACE} set image deployment/frontend frontend=${IMAGE_REPO}:${FRONTEND_TAG}
-          kubectl -n ${K8S_NAMESPACE} rollout status deployment/backend --timeout=120s
-          kubectl -n ${K8S_NAMESPACE} rollout status deployment/frontend --timeout=120s
-        '''
+        // 'kubeconfig-c2c' is a Secret file credential holding the kubeconfig for
+        // the jenkins-deployer ServiceAccount (namespace-scoped context). The file
+        // binding points KUBECONFIG at a temp copy that Jenkins wipes after the block.
+        withCredentials([file(credentialsId: 'kubeconfig-c2c', variable: 'KUBECONFIG')]) {
+          sh '''
+            kubectl apply -f k8s/namespace.yaml
+            kubectl apply -f k8s/
+            kubectl -n ${K8S_NAMESPACE} set image deployment/backend backend=${IMAGE_REPO}:${BACKEND_TAG}
+            kubectl -n ${K8S_NAMESPACE} set image deployment/frontend frontend=${IMAGE_REPO}:${FRONTEND_TAG}
+            kubectl -n ${K8S_NAMESPACE} rollout status deployment/backend --timeout=120s
+            kubectl -n ${K8S_NAMESPACE} rollout status deployment/frontend --timeout=120s
+          '''
+        }
       }
     }
   }
