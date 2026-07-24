@@ -18,6 +18,10 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        # Numeric UID/GID: the image's `USER app` is non-numeric, which kubelet
+        # cannot verify against runAsNonRoot (CreateContainerConfigError).
+        runAsUser: 10001
+        runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:

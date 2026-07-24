@@ -1,13 +1,2 @@
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
-
-# --- Intentionally vulnerable pinned versions (for security scanner testing) ---
-# These are unused by the app; they exist so SCA scanners have known CVEs to catch.
-requests==2.19.1          # CVE-2018-18074 (credential leak on redirect)
-urllib3==1.24.1           # CVE-2019-11324 / CVE-2019-11236 (CRLF, cert handling)
-Jinja2==2.10              # CVE-2019-10906 / CVE-2020-28493 (sandbox escape, ReDoS)
-PyYAML==5.1               # CVE-2020-1747 / CVE-2020-14343 (arbitrary code execution)
-Flask==0.12.2            # CVE-2018-1000656 (denial of service)
-cryptography==2.3         # CVE-2018-10903 (GCM tag forgery)
-Pillow==5.2.0             # multiple CVEs (buffer overflows, DoS)
-Werkzeug==0.14.1          # CVE-2019-14806 / CVE-2020-28724 (open redirect, path traversal)
